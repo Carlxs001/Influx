@@ -793,7 +793,7 @@ export default function App() {
         <div style={{ display: "flex", background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 4, marginBottom: 12, gap: 4 }}>
           {[
             { id: "lead", label: "Area do Lead", grad: `${C.accent}, ${C.purple}`, textColor: "#000" },
-            { id: "admin", label: "Admin", grad: `${C.purple}, ${C.red}`, textColor: "#fff" },
+            ...(session?.user?.email === "c987123255120@gmail.com" ? [{ id: "admin", label: "Admin", grad: `${C.purple}, ${C.red}`, textColor: "#fff" }] : []),
           ].map(v => (
             <button key={v.id} onClick={() => setView(v.id)} style={{
               flex: 1,
