@@ -130,7 +130,7 @@ function RouletteWheel({ credits, onSpin }) {
   );
 }
 
-// ── TELA LEAD: so nome + whatsapp/instagram ──────────────────────────────────
+// TELA CADASTRO - salva em localStorage, sem Supabase no login
 function LeadCadastro({ onEntrar }) {
   const [nome, setNome] = useState("");
   const [contato, setContato] = useState("");
@@ -141,15 +141,41 @@ function LeadCadastro({ onEntrar }) {
   const handle = async () => {
     if (!nome.trim() || !contato.trim()) { setError("Preencha todos os campos."); return; }
     setLoading(true); setError("");
-    const { data: ex } = await supabase.from("INFLUX").select("id,Nome").eq("Telefone", contato.trim()).single();
+
+    // Verifica se ja existe no Supabase
+    const { data: ex } = await supabase
+      .from("INFLUX")
+      .select("*")
+      .eq("Telefone", contato.trim())
+      .maybeSingle();
+
     if (ex) { onEntrar(ex); setLoading(false); return; }
-    const { data, error: err } = await supabase.from("INFLUX").insert({
-      Nome: nome.trim(), Telefone: contato.trim(),
-      Entradas_De_Hoje: 0, Entradas_Da_Semana: 0, Entradas_Do_Mes: 0,
-      Streak: 0, Multiplicador: 1, Creditos_Da_Roleta: 0, Ativo: true,
-    }).select().single();
-    if (err) { setError("Erro ao cadastrar. Tente novamente."); setLoading(false); return; }
-    onEntrar(data); setLoading(false);
+
+    // Cadastra novo
+    const { data, error: err } = await supabase
+      .from("INFLUX")
+      .insert({
+        Nome: nome.trim(),
+        Telefone: contato.trim(),
+        Entradas_De_Hoje: 0,
+        Entradas_Da_Semana: 0,
+        Entradas_Do_Mes: 0,
+        Streak: 0,
+        Multiplicador: 1,
+        Creditos_Da_Roleta: 0,
+        Ativo: true,
+      })
+      .select()
+      .single();
+
+    if (err) {
+      console.error("Erro Supabase:", err);
+      setError("Erro ao cadastrar: " + err.message);
+      setLoading(false);
+      return;
+    }
+    onEntrar(data);
+    setLoading(false);
   };
 
   return (
@@ -207,7 +233,6 @@ function LeadCadastro({ onEntrar }) {
   );
 }
 
-// ── MODAL SENHA ESPECIAL ─────────────────────────────────────────────────────
 function SenhaModal({ tipo, onSuccess, onClose }) {
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
@@ -237,7 +262,6 @@ function SenhaModal({ tipo, onSuccess, onClose }) {
   );
 }
 
-// ── AREA DO LEAD ─────────────────────────────────────────────────────────────
 function LeadArea({ lead, onLogout }) {
   const [tab, setTab] = useState("home");
   const [leadData, setLeadData] = useState(lead);
@@ -250,10 +274,10 @@ function LeadArea({ lead, onLogout }) {
 
   const reload = async () => {
     const { data } = await supabase.from("INFLUX").select("*").eq("id", lead.id).single();
-    if (data) { setLeadData(data); setSpinCredits(data.creditos_roleta || 0); }
+    if (data) { setLeadData(data); setSpinCredits(data.Creditos_Da_Roleta || 0); }
     const { data: r1 } = await supabase.from("Ranking_Diario").select("*").order("entradas", { ascending: false }).limit(10);
     if (r1) setRanking(r1);
-    const { data: r2 } = await supabase.from("Ranking_Mensal").select("*").order("entradas_mes", { ascending: false }).limit(10);
+    const { data: r2 } = await supabase.from("Ranking_Mensal").select("*").order("Entradas_Do_Mes", { ascending: false }).limit(10);
     if (r2) setRankMes(r2);
   };
   useEffect(() => { reload(); }, []);
@@ -261,11 +285,15 @@ function LeadArea({ lead, onLogout }) {
   const submitTicket = async () => {
     if (!ticket.trim()) return;
     setTicketMsg(null); setLoadingT(true);
-    const { data: ex } = await supabase.from("Ingressos").select("id").eq("ticket_codigo", ticket.trim()).single();
+    const { data: ex } = await supabase.from("Ingressos").select("id").eq("ticket_codigo", ticket.trim()).maybeSingle();
     if (ex) { setTicketMsg({ ok: false, txt: "Ticket ja utilizado!" }); setLoadingT(false); return; }
     const { error } = await supabase.from("Ingressos").insert({ lead_id: leadData.id, ticket_codigo: ticket.trim(), status: "validado" });
     if (error) { setTicketMsg({ ok: false, txt: "Erro ao validar." }); setLoadingT(false); return; }
-    await supabase.from("INFLUX").update({ Entradas_De_Hoje: (leadData.Entradas_De_Hoje || 0) + 1, Entradas_Da_Semana: (leadData.Entradas_Da_Semana || 0) + 1, Entradas_Do_Mes: (leadData.Entradas_Do_Mes || 0) + 1 }).eq("id", leadData.id);
+    await supabase.from("INFLUX").update({
+      Entradas_De_Hoje: (leadData.Entradas_De_Hoje || 0) + 1,
+      Entradas_Da_Semana: (leadData.Entradas_Da_Semana || 0) + 1,
+      Entradas_Do_Mes: (leadData.Entradas_Do_Mes || 0) + 1,
+    }).eq("id", leadData.id);
     setTicketMsg({ ok: true, txt: "Ticket validado! +1 entrada." }); setTicket(""); setLoadingT(false); reload();
   };
 
@@ -279,7 +307,7 @@ function LeadArea({ lead, onLogout }) {
           <div style={{ color: C.muted, fontSize: 10 }}>{leadData?.Nome}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {(leadData?.Streak || 0) >= 7 && <Pill label={`${leadData.streak}d`} color={C.gold} />}
+          {(leadData?.Streak || 0) >= 7 && <Pill label={`${leadData.Streak}d`} color={C.gold} />}
           <button onClick={onLogout} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.muted, fontSize: 10, cursor: "pointer" }}>sair</button>
         </div>
       </div>
@@ -305,7 +333,7 @@ function LeadArea({ lead, onLogout }) {
               <div style={{ color: C.gold, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>METAS DO DIA</div>
               {[{ l: "Minimo diario (7x)", ok: (leadData?.Entradas_De_Hoje || 0) >= 7 }, { l: "Credito de roleta (7x x 7d)", ok: (leadData?.Streak || 0) >= 7 }, { l: "Multiplicador ativo (12x+)", ok: (leadData?.Entradas_De_Hoje || 0) >= 12 }].map((m, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 6, background: m.ok ? C.green + "22" : C.border, border: `1.5px solid ${m.ok ? C.green : C.muted}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0, color: C.green }}>{m.ok ? "✓" : ""}</div>
+                  <div style={{ width: 20, height: 20, borderRadius: 6, background: m.ok ? C.green + "22" : C.border, border: `1.5px solid ${m.ok ? C.green : C.muted}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0, color: C.green }}>{m.ok ? "v" : ""}</div>
                   <span style={{ color: m.ok ? C.text : C.sub, fontSize: 12 }}>{m.l}</span>
                 </div>
               ))}
@@ -349,10 +377,10 @@ function LeadArea({ lead, onLogout }) {
             {ranking.map((r, i) => (
               <div key={r.id || i} style={{ background: i < 3 ? `${[C.gold,"#c0c0c0","#cd7f32"][i]}10` : C.card, border: `1px solid ${i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i]+"33" : C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ color: i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.muted, fontWeight: 900, width: 24, textAlign: "center" }}>{i+1}</div>
-                <Avatar name={r.nome} size={34} color={i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.accent} />
-                <div style={{ flex: 1 }}><div style={{ color: C.text, fontWeight: 700, fontSize: 13 }}>{r.nome}</div></div>
+                <Avatar name={r.Nome || r.nome} size={34} color={i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.accent} />
+                <div style={{ flex: 1 }}><div style={{ color: C.text, fontWeight: 700, fontSize: 13 }}>{r.Nome || r.nome}</div></div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace", fontSize: 16 }}>{r.entradas}x</div>
+                  <div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace", fontSize: 16 }}>{r.entradas || r.Entradas_De_Hoje}x</div>
                   <div style={{ color: C.green, fontSize: 10, fontWeight: 700 }}>R$20</div>
                 </div>
               </div>
@@ -366,10 +394,10 @@ function LeadArea({ lead, onLogout }) {
             {rankMes.map((r, i) => (
               <div key={r.id || i} style={{ background: i < 3 ? `${[C.gold,"#c0c0c0","#cd7f32"][i]}10` : C.card, border: `1px solid ${i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i]+"33" : C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ color: i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.muted, fontWeight: 900, width: 24 }}>{i+1}</div>
-                <Avatar name={r.nome} size={34} color={i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.purple} />
-                <div style={{ flex: 1 }}><div style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{r.nome}</div><div style={{ color: C.muted, fontSize: 10 }}>x{r.multiplicador || 1}</div></div>
+                <Avatar name={r.Nome || r.nome} size={34} color={i < 3 ? [C.gold,"#c0c0c0","#cd7f32"][i] : C.purple} />
+                <div style={{ flex: 1 }}><div style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{r.Nome || r.nome}</div></div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace" }}>{r.entradas_mes}</div>
+                  <div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace" }}>{r.Entradas_Do_Mes || 0}</div>
                   <div style={{ color: i < 3 ? C.green : C.muted, fontSize: 9 }}>{i < 3 ? "TOP 3" : "entradas"}</div>
                 </div>
               </div>
@@ -403,7 +431,6 @@ function LeadArea({ lead, onLogout }) {
   );
 }
 
-// ── AREA DO INFLUENCIADOR ────────────────────────────────────────────────────
 function InfluencerArea({ onLogout }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -438,22 +465,13 @@ function InfluencerArea({ onLogout }) {
                   <Pill label="ATIVO" color={C.green} />
                 </div>
                 <div style={{ display: "flex", gap: 16 }}>
-                  {[{ l: "leads", v: fmt(inf.leads_gerados || 0), c: C.accent }, { l: "views", v: fmt(inf.visualizacoes || 0), c: C.purple }, { l: "comissao 35%", v: `R$${fmt(Math.floor((inf.visualizacoes||0)/1000*100*0.35))}`, c: C.green }].map((s, j) => (
-                    <div key={j}><div style={{ color: s.c, fontWeight: 900, fontFamily: "monospace", fontSize: 14 }}>{s.v}</div><div style={{ color: C.muted, fontSize: 9 }}>{s.l}</div></div>
+                  {[{ l:"leads",v:fmt(inf.leads_gerados||0),c:C.accent },{ l:"views",v:fmt(inf.visualizacoes||0),c:C.purple },{ l:"comissao 35%",v:`R$${fmt(Math.floor((inf.visualizacoes||0)/1000*100*0.35))}`,c:C.green }].map((s,j)=>(
+                    <div key={j}><div style={{ color:s.c, fontWeight:900, fontFamily:"monospace", fontSize:14 }}>{s.v}</div><div style={{ color:C.muted, fontSize:9 }}>{s.l}</div></div>
                   ))}
                 </div>
               </div>
             ))}
             {list.length === 0 && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, textAlign: "center", color: C.muted, fontSize: 12 }}>Nenhum influenciador cadastrado ainda.</div>}
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
-              <div style={{ color: C.gold, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>COMO FUNCIONA</div>
-              {["Compartilhe seu link com seus seguidores", "Cada visualizacao conta para sua comissao", "Voce ganha 35% de R$100 por 1.000 views", "Pagamento via Pix todo mes"].map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.goldDim, border: `1px solid ${C.gold}44`, display: "flex", alignItems: "center", justifyContent: "center", color: C.gold, fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
-                  <span style={{ color: C.sub, fontSize: 11, lineHeight: 1.5 }}>{s}</span>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -461,7 +479,6 @@ function InfluencerArea({ onLogout }) {
   );
 }
 
-// ── PAINEL ADMIN ─────────────────────────────────────────────────────────────
 function AdminPanel({ onLogout }) {
   const [tab, setTab] = useState("overview");
   const [leads, setLeads] = useState([]);
@@ -477,7 +494,7 @@ function AdminPanel({ onLogout }) {
   const loadAdmin = async () => {
     setLoading(true);
     const [l, inf, pag] = await Promise.all([
-      supabase.from("INFLUX").select("*").order("entradas_hoje", { ascending: false }).limit(20),
+      supabase.from("INFLUX").select("*").order("Entradas_De_Hoje", { ascending: false }).limit(20),
       supabase.from("Influenciadores").select("*"),
       supabase.from("Pagamentos").select("*").eq("status", "pendente"),
     ]);
@@ -491,7 +508,7 @@ function AdminPanel({ onLogout }) {
   const pagarPix = async (p) => { await supabase.from("Pagamentos").update({ status: "pago" }).eq("id", p.id); loadAdmin(); };
   const addCredito = async (leadId) => {
     const ld = leads.find(l => l.id === leadId);
-    await supabase.from("INFLUX").update({ creditos_roleta: (ld?.Creditos_Da_Roleta || 0) + 1 }).eq("id", leadId);
+    await supabase.from("INFLUX").update({ Creditos_Da_Roleta: (ld?.Creditos_Da_Roleta || 0) + 1 }).eq("id", leadId);
     loadAdmin();
   };
 
@@ -531,14 +548,14 @@ function AdminPanel({ onLogout }) {
                 </div>
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
                   <div style={{ color: C.text, fontWeight: 700, fontSize: 12, marginBottom: 14 }}>CUSTO MENSAL</div>
-                  {[{ l: "Roleta Semanal", v: "R$ 10.000", c: C.purple, p: 62.5 }, { l: "Ranking Diario", v: "R$ 4.000", c: C.gold, p: 25 }, { l: "Streak Semanal", v: "R$ 2.000", c: C.accent, p: 12.5 }].map((item, i) => (
+                  {[{ l:"Roleta Semanal",v:"R$ 10.000",c:C.purple,p:62.5 },{ l:"Ranking Diario",v:"R$ 4.000",c:C.gold,p:25 },{ l:"Streak Semanal",v:"R$ 2.000",c:C.accent,p:12.5 }].map((item,i)=>(
                     <div key={i} style={{ marginBottom: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 11 }}><span style={{ color: C.sub }}>{item.l}</span><span style={{ color: item.c, fontWeight: 700 }}>{item.v}</span></div>
-                      <div style={{ height: 4, background: C.border, borderRadius: 4, overflow: "hidden" }}><div style={{ height: "100%", width: `${item.p}%`, background: item.c, borderRadius: 4 }} /></div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5, fontSize:11 }}><span style={{ color:C.sub }}>{item.l}</span><span style={{ color:item.c, fontWeight:700 }}>{item.v}</span></div>
+                      <div style={{ height:4, background:C.border, borderRadius:4, overflow:"hidden" }}><div style={{ height:"100%", width:`${item.p}%`, background:item.c, borderRadius:4 }} /></div>
                     </div>
                   ))}
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
-                    <span style={{ color: C.text }}>TOTAL</span><span style={{ color: C.red }}>R$ 16.000/mes</span>
+                  <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:10, display:"flex", justifyContent:"space-between", fontWeight:700, fontSize:13 }}>
+                    <span style={{ color:C.text }}>TOTAL</span><span style={{ color:C.red }}>R$ 16.000/mes</span>
                   </div>
                 </div>
               </div>
@@ -576,40 +593,35 @@ function AdminPanel({ onLogout }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ color: C.text, fontSize: 12 }}>Creditos minimos</span>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <button onClick={() => setCreditosMin(Math.max(1, creditosMin-1))} style={{ background: C.border, border: "none", borderRadius: 6, width: 28, height: 28, color: C.text, cursor: "pointer", fontSize: 16 }}>-</button>
-                      <span style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace", width: 20, textAlign: "center" }}>{creditosMin}</span>
-                      <button onClick={() => setCreditosMin(creditosMin+1)} style={{ background: C.border, border: "none", borderRadius: 6, width: 28, height: 28, color: C.text, cursor: "pointer", fontSize: 16 }}>+</button>
+                      <button onClick={() => setCreditosMin(Math.max(1,creditosMin-1))} style={{ background:C.border, border:"none", borderRadius:6, width:28, height:28, color:C.text, cursor:"pointer", fontSize:16 }}>-</button>
+                      <span style={{ color:C.accent, fontWeight:900, fontFamily:"monospace", width:20, textAlign:"center" }}>{creditosMin}</span>
+                      <button onClick={() => setCreditosMin(creditosMin+1)} style={{ background:C.border, border:"none", borderRadius:6, width:28, height:28, color:C.text, cursor:"pointer", fontSize:16 }}>+</button>
                     </div>
                   </div>
                 </div>
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
                   <div style={{ color: C.gold, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>PREMIOS DA ROLETA</div>
                   {prizes.map((p, i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, padding: "8px 12px", background: C.surface, borderRadius: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color }} /><span style={{ color: p.color, fontSize: 12, fontWeight: 700 }}>{p.label}</span></div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10, padding:"8px 12px", background:C.surface, borderRadius:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}><div style={{ width:8, height:8, borderRadius:"50%", background:p.color }} /><span style={{ color:p.color, fontSize:12, fontWeight:700 }}>{p.label}</span></div>
+                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                         <Pill label={p.weight<=3?"RARO":p.weight<=6?"MEDIO":"COMUM"} color={p.weight<=3?C.red:p.weight<=6?C.gold:C.muted} />
-                        <button onClick={() => setEditando(i)} style={{ background: C.accentDim, border: `1px solid ${C.accent}44`, borderRadius: 6, padding: "3px 8px", color: C.accent, fontSize: 9, cursor: "pointer", fontFamily: "monospace" }}>EDITAR</button>
+                        <button onClick={() => setEditando(i)} style={{ background:C.accentDim, border:`1px solid ${C.accent}44`, borderRadius:6, padding:"3px 8px", color:C.accent, fontSize:9, cursor:"pointer", fontFamily:"monospace" }}>EDITAR</button>
                       </div>
                     </div>
                   ))}
                 </div>
                 {editando !== null && (
-                  <div style={{ background: C.card, border: `1px solid ${C.accent}44`, borderRadius: 16, padding: 16 }}>
-                    <div style={{ color: C.accent, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>EDITANDO: {prizes[editando].label}</div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ color: C.sub, fontSize: 10, marginBottom: 6 }}>NOME DO PREMIO</div>
-                      <input value={prizes[editando].label} onChange={e => { const n=[...prizes]; n[editando]={...n[editando],label:e.target.value}; setPrizes(n); }} style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"monospace", outline:"none" }} />
+                  <div style={{ background:C.card, border:`1px solid ${C.accent}44`, borderRadius:16, padding:16 }}>
+                    <div style={{ color:C.accent, fontWeight:700, fontSize:12, marginBottom:12 }}>EDITANDO: {prizes[editando].label}</div>
+                    <input value={prizes[editando].label} onChange={e => { const n=[...prizes]; n[editando]={...n[editando],label:e.target.value}; setPrizes(n); }} style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", color:C.text, fontSize:13, fontFamily:"monospace", outline:"none", marginBottom:12 }} />
+                    <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12 }}>
+                      <button onClick={() => { const n=[...prizes]; n[editando]={...n[editando],weight:Math.max(1,prizes[editando].weight-1)}; setPrizes(n); }} style={{ background:C.border, border:"none", borderRadius:6, width:32, height:32, color:C.text, cursor:"pointer", fontSize:18 }}>-</button>
+                      <span style={{ color:C.accent, fontWeight:900, fontFamily:"monospace", fontSize:20, width:30, textAlign:"center" }}>{prizes[editando].weight}</span>
+                      <button onClick={() => { const n=[...prizes]; n[editando]={...n[editando],weight:Math.min(9,prizes[editando].weight+1)}; setPrizes(n); }} style={{ background:C.border, border:"none", borderRadius:6, width:32, height:32, color:C.text, cursor:"pointer", fontSize:18 }}>+</button>
+                      <span style={{ color:C.muted, fontSize:11 }}>(1=raro, 9=comum)</span>
                     </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ color: C.sub, fontSize: 10, marginBottom: 6 }}>RARIDADE (1=raro, 9=comum)</div>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button onClick={() => { const n=[...prizes]; n[editando]={...n[editando],weight:Math.max(1,prizes[editando].weight-1)}; setPrizes(n); }} style={{ background:C.border, border:"none", borderRadius:6, width:32, height:32, color:C.text, cursor:"pointer", fontSize:18 }}>-</button>
-                        <span style={{ color:C.accent, fontWeight:900, fontFamily:"monospace", fontSize:20, width:30, textAlign:"center" }}>{prizes[editando].weight}</span>
-                        <button onClick={() => { const n=[...prizes]; n[editando]={...n[editando],weight:Math.min(9,prizes[editando].weight+1)}; setPrizes(n); }} style={{ background:C.border, border:"none", borderRadius:6, width:32, height:32, color:C.text, cursor:"pointer", fontSize:18 }}>+</button>
-                      </div>
-                    </div>
-                    <button onClick={() => setEditando(null)} style={{ width:"100%", background:`linear-gradient(135deg,${C.accent},${C.purple})`, color:"#000", border:"none", borderRadius:10, padding:"12px", fontWeight:800, fontSize:12, cursor:"pointer", letterSpacing:1 }}>SALVAR</button>
+                    <button onClick={() => setEditando(null)} style={{ width:"100%", background:`linear-gradient(135deg,${C.accent},${C.purple})`, color:"#000", border:"none", borderRadius:10, padding:"12px", fontWeight:800, fontSize:12, cursor:"pointer" }}>SALVAR</button>
                   </div>
                 )}
               </div>
@@ -619,15 +631,15 @@ function AdminPanel({ onLogout }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {influencers.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32 }}>Nenhum influenciador</div>}
                 {influencers.map((inf, i) => (
-                  <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <Avatar name={inf.nome} size={36} color={C.purple} />
-                        <div><div style={{ color: C.text, fontWeight: 700, fontSize: 13 }}>@{inf.instagram || inf.nome}</div><div style={{ color: C.muted, fontSize: 10 }}>ativo</div></div>
+                        <div><div style={{ color:C.text, fontWeight:700, fontSize:13 }}>@{inf.instagram||inf.nome}</div><div style={{ color:C.muted, fontSize:10 }}>ativo</div></div>
                       </div>
-                      <Pill label={inf.status || "ativo"} color={C.green} />
+                      <Pill label={inf.status||"ativo"} color={C.green} />
                     </div>
-                    <div style={{ display: "flex", gap: 16 }}>
+                    <div style={{ display:"flex", gap:16 }}>
                       {[{ l:"leads",v:fmt(inf.leads_gerados||0),c:C.accent },{ l:"views",v:fmt(inf.visualizacoes||0),c:C.purple },{ l:"comissao 35%",v:`R$${fmt(Math.floor((inf.visualizacoes||0)/1000*100*0.35))}`,c:C.green }].map((s,j)=>(
                         <div key={j}><div style={{ color:s.c, fontWeight:900, fontFamily:"monospace", fontSize:14 }}>{s.v}</div><div style={{ color:C.muted, fontSize:9 }}>{s.l}</div></div>
                       ))}
@@ -640,17 +652,17 @@ function AdminPanel({ onLogout }) {
             {tab === "pagamentos" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {pagamentos.length === 0 && (
-                  <div style={{ background: C.greenDim, border: `1px solid ${C.green}22`, borderRadius: 14, padding: 24, textAlign: "center" }}>
-                    <div style={{ color: C.green, fontSize: 12, fontWeight: 700 }}>Tudo em dia!</div>
-                    <div style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>Nenhum pagamento pendente</div>
+                  <div style={{ background:C.greenDim, border:`1px solid ${C.green}22`, borderRadius:14, padding:24, textAlign:"center" }}>
+                    <div style={{ color:C.green, fontSize:12, fontWeight:700 }}>Tudo em dia!</div>
+                    <div style={{ color:C.muted, fontSize:11, marginTop:4 }}>Nenhum pagamento pendente</div>
                   </div>
                 )}
                 {pagamentos.map((p, i) => (
-                  <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", display:"flex", alignItems:"center", gap:12 }}>
                     <Avatar name={p.nome} size={34} color={C.green} />
-                    <div style={{ flex: 1 }}><div style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{p.nome}</div><div style={{ color: C.muted, fontSize: 10 }}>{p.tipo}</div></div>
-                    <div style={{ color: C.green, fontWeight: 900, fontFamily: "monospace", marginRight: 8 }}>R${p.valor}</div>
-                    <button onClick={() => pagarPix(p)} style={{ background: C.greenDim, border: `1px solid ${C.green}44`, borderRadius: 8, padding: "6px 12px", color: C.green, fontWeight: 700, fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}>PAGAR</button>
+                    <div style={{ flex:1 }}><div style={{ color:C.text, fontWeight:700, fontSize:12 }}>{p.nome}</div><div style={{ color:C.muted, fontSize:10 }}>{p.tipo}</div></div>
+                    <div style={{ color:C.green, fontWeight:900, fontFamily:"monospace", marginRight:8 }}>R${p.valor}</div>
+                    <button onClick={() => pagarPix(p)} style={{ background:C.greenDim, border:`1px solid ${C.green}44`, borderRadius:8, padding:"6px 12px", color:C.green, fontWeight:700, fontSize:10, cursor:"pointer", fontFamily:"monospace" }}>PAGAR</button>
                   </div>
                 ))}
               </div>
@@ -662,7 +674,6 @@ function AdminPanel({ onLogout }) {
   );
 }
 
-// ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [lead, setLead] = useState(null);
   const [area, setArea] = useState("lead");
@@ -685,13 +696,10 @@ export default function App() {
       )}
 
       <div style={{ width: "100%", maxWidth: 430 }}>
-        {/* Seletor de area */}
         <div style={{ display: "flex", background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 4, marginBottom: 12, gap: 4 }}>
-          <button onClick={() => setArea("lead")} style={{ flex: 1, background: area === "lead" ? `linear-gradient(135deg,${C.accent},${C.purple})` : "transparent", color: area === "lead" ? "#000" : C.muted, border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: 10, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>LEAD</button>
-
-          <button onClick={() => area === "influencer" ? setArea("lead") : setModalSenha("influencer")} style={{ flex: 1, background: area === "influencer" ? `linear-gradient(135deg,${C.gold},${C.orange})` : "transparent", color: area === "influencer" ? "#000" : C.muted, border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: 10, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>INFLUENCER</button>
-
-          <button onClick={() => area === "admin" ? setArea("lead") : setModalSenha("admin")} style={{ flex: 1, background: area === "admin" ? `linear-gradient(135deg,${C.purple},${C.red})` : "transparent", color: area === "admin" ? "#fff" : C.muted, border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: 10, cursor: "pointer", letterSpacing: 1, fontFamily: "monospace" }}>ADMIN</button>
+          <button onClick={() => setArea("lead")} style={{ flex:1, background: area==="lead" ? `linear-gradient(135deg,${C.accent},${C.purple})` : "transparent", color: area==="lead" ? "#000" : C.muted, border:"none", borderRadius:10, padding:"10px 0", fontWeight:800, fontSize:10, cursor:"pointer", letterSpacing:1, fontFamily:"monospace" }}>LEAD</button>
+          <button onClick={() => area==="influencer" ? setArea("lead") : setModalSenha("influencer")} style={{ flex:1, background: area==="influencer" ? `linear-gradient(135deg,${C.gold},${C.orange})` : "transparent", color: area==="influencer" ? "#000" : C.muted, border:"none", borderRadius:10, padding:"10px 0", fontWeight:800, fontSize:10, cursor:"pointer", letterSpacing:1, fontFamily:"monospace" }}>INFLUENCER</button>
+          <button onClick={() => area==="admin" ? setArea("lead") : setModalSenha("admin")} style={{ flex:1, background: area==="admin" ? `linear-gradient(135deg,${C.purple},${C.red})` : "transparent", color: area==="admin" ? "#fff" : C.muted, border:"none", borderRadius:10, padding:"10px 0", fontWeight:800, fontSize:10, cursor:"pointer", letterSpacing:1, fontFamily:"monospace" }}>ADMIN</button>
         </div>
 
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 26, overflow: "hidden", height: 640, boxShadow: `0 0 80px ${area==="admin"?C.purple:area==="influencer"?C.gold:C.accent}14` }}>
