@@ -141,9 +141,9 @@ function LeadCadastro({ onEntrar }) {
   const handle = async () => {
     if (!nome.trim() || !contato.trim()) { setError("Preencha todos os campos."); return; }
     setLoading(true); setError("");
-    const { data: ex } = await supabase.from("INFLUXO").select("id,nome").eq("telefone", contato.trim()).single();
+    const { data: ex } = await supabase.from("INFLUX").select("id,nome").eq("telefone", contato.trim()).single();
     if (ex) { onEntrar(ex); setLoading(false); return; }
-    const { data, error: err } = await supabase.from("INFLUXO").insert({
+    const { data, error: err } = await supabase.from("INFLUX").insert({
       nome: nome.trim(), telefone: contato.trim(),
       entradas_hoje: 0, entradas_semana: 0, entradas_mes: 0,
       streak: 0, multiplicador: 1, creditos_roleta: 0, ativo: true,
@@ -249,7 +249,7 @@ function LeadArea({ lead, onLogout }) {
   const [spinCredits, setSpinCredits] = useState(lead?.creditos_roleta || 0);
 
   const reload = async () => {
-    const { data } = await supabase.from("INFLUXO").select("*").eq("id", lead.id).single();
+    const { data } = await supabase.from("INFLUX").select("*").eq("id", lead.id).single();
     if (data) { setLeadData(data); setSpinCredits(data.creditos_roleta || 0); }
     const { data: r1 } = await supabase.from("Ranking_Diario").select("*").order("entradas", { ascending: false }).limit(10);
     if (r1) setRanking(r1);
@@ -265,7 +265,7 @@ function LeadArea({ lead, onLogout }) {
     if (ex) { setTicketMsg({ ok: false, txt: "Ticket ja utilizado!" }); setLoadingT(false); return; }
     const { error } = await supabase.from("Ingressos").insert({ lead_id: leadData.id, ticket_codigo: ticket.trim(), status: "validado" });
     if (error) { setTicketMsg({ ok: false, txt: "Erro ao validar." }); setLoadingT(false); return; }
-    await supabase.from("INFLUXO").update({ entradas_hoje: (leadData.entradas_hoje || 0) + 1, entradas_semana: (leadData.entradas_semana || 0) + 1, entradas_mes: (leadData.entradas_mes || 0) + 1 }).eq("id", leadData.id);
+    await supabase.from("INFLUX").update({ entradas_hoje: (leadData.entradas_hoje || 0) + 1, entradas_semana: (leadData.entradas_semana || 0) + 1, entradas_mes: (leadData.entradas_mes || 0) + 1 }).eq("id", leadData.id);
     setTicketMsg({ ok: true, txt: "Ticket validado! +1 entrada." }); setTicket(""); setLoadingT(false); reload();
   };
 
@@ -337,7 +337,7 @@ function LeadArea({ lead, onLogout }) {
             <RouletteWheel credits={spinCredits} onSpin={async () => {
               const nc = Math.max(0, (leadData?.creditos_roleta || 0) - 1);
               setSpinCredits(nc);
-              await supabase.from("INFLUXO").update({ creditos_roleta: nc }).eq("id", leadData.id);
+              await supabase.from("INFLUX").update({ creditos_roleta: nc }).eq("id", leadData.id);
             }} />
           </div>
         )}
@@ -477,7 +477,7 @@ function AdminPanel({ onLogout }) {
   const loadAdmin = async () => {
     setLoading(true);
     const [l, inf, pag] = await Promise.all([
-      supabase.from("INFLUXO").select("*").order("entradas_hoje", { ascending: false }).limit(20),
+      supabase.from("INFLUX").select("*").order("entradas_hoje", { ascending: false }).limit(20),
       supabase.from("Influenciadores").select("*"),
       supabase.from("Pagamentos").select("*").eq("status", "pendente"),
     ]);
@@ -491,7 +491,7 @@ function AdminPanel({ onLogout }) {
   const pagarPix = async (p) => { await supabase.from("Pagamentos").update({ status: "pago" }).eq("id", p.id); loadAdmin(); };
   const addCredito = async (leadId) => {
     const ld = leads.find(l => l.id === leadId);
-    await supabase.from("INFLUXO").update({ creditos_roleta: (ld?.creditos_roleta || 0) + 1 }).eq("id", leadId);
+    await supabase.from("INFLUX").update({ creditos_roleta: (ld?.creditos_roleta || 0) + 1 }).eq("id", leadId);
     loadAdmin();
   };
 
@@ -705,4 +705,4 @@ export default function App() {
     </div>
   );
 }
-
+              
