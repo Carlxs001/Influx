@@ -141,12 +141,12 @@ function LeadCadastro({ onEntrar }) {
   const handle = async () => {
     if (!nome.trim() || !contato.trim()) { setError("Preencha todos os campos."); return; }
     setLoading(true); setError("");
-    const { data: ex } = await supabase.from("INFLUX").select("id,nome").eq("telefone", contato.trim()).single();
+    const { data: ex } = await supabase.from("INFLUX").select("id,Nome").eq("Telefone", contato.trim()).single();
     if (ex) { onEntrar(ex); setLoading(false); return; }
     const { data, error: err } = await supabase.from("INFLUX").insert({
-      nome: nome.trim(), telefone: contato.trim(),
-      entradas_hoje: 0, entradas_semana: 0, entradas_mes: 0,
-      streak: 0, multiplicador: 1, creditos_roleta: 0, ativo: true,
+      Nome: nome.trim(), Telefone: contato.trim(),
+      Entradas_De_Hoje: 0, Entradas_Da_Semana: 0, Entradas_Do_Mes: 0,
+      Streak: 0, Multiplicador: 1, Creditos_Da_Roleta: 0, Ativo: true,
     }).select().single();
     if (err) { setError("Erro ao cadastrar. Tente novamente."); setLoading(false); return; }
     onEntrar(data); setLoading(false);
@@ -246,7 +246,7 @@ function LeadArea({ lead, onLogout }) {
   const [ticket, setTicket] = useState("");
   const [ticketMsg, setTicketMsg] = useState(null);
   const [loadingT, setLoadingT] = useState(false);
-  const [spinCredits, setSpinCredits] = useState(lead?.creditos_roleta || 0);
+  const [spinCredits, setSpinCredits] = useState(lead?.Creditos_Da_Roleta || 0);
 
   const reload = async () => {
     const { data } = await supabase.from("INFLUX").select("*").eq("id", lead.id).single();
@@ -265,7 +265,7 @@ function LeadArea({ lead, onLogout }) {
     if (ex) { setTicketMsg({ ok: false, txt: "Ticket ja utilizado!" }); setLoadingT(false); return; }
     const { error } = await supabase.from("Ingressos").insert({ lead_id: leadData.id, ticket_codigo: ticket.trim(), status: "validado" });
     if (error) { setTicketMsg({ ok: false, txt: "Erro ao validar." }); setLoadingT(false); return; }
-    await supabase.from("INFLUX").update({ entradas_hoje: (leadData.entradas_hoje || 0) + 1, entradas_semana: (leadData.entradas_semana || 0) + 1, entradas_mes: (leadData.entradas_mes || 0) + 1 }).eq("id", leadData.id);
+    await supabase.from("INFLUX").update({ Entradas_De_Hoje: (leadData.Entradas_De_Hoje || 0) + 1, Entradas_Da_Semana: (leadData.Entradas_Da_Semana || 0) + 1, Entradas_Do_Mes: (leadData.Entradas_Do_Mes || 0) + 1 }).eq("id", leadData.id);
     setTicketMsg({ ok: true, txt: "Ticket validado! +1 entrada." }); setTicket(""); setLoadingT(false); reload();
   };
 
@@ -276,10 +276,10 @@ function LeadArea({ lead, onLogout }) {
       <div style={{ background: `linear-gradient(135deg,${C.accent}12,${C.purple}08)`, borderBottom: `1px solid ${C.border}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 4, background: `linear-gradient(135deg,${C.accent},${C.purple})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>INFLUX</div>
-          <div style={{ color: C.muted, fontSize: 10 }}>{leadData?.nome}</div>
+          <div style={{ color: C.muted, fontSize: 10 }}>{leadData?.Nome}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {(leadData?.streak || 0) >= 7 && <Pill label={`${leadData.streak}d`} color={C.gold} />}
+          {(leadData?.Streak || 0) >= 7 && <Pill label={`${leadData.streak}d`} color={C.gold} />}
           <button onClick={onLogout} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px", color: C.muted, fontSize: 10, cursor: "pointer" }}>sair</button>
         </div>
       </div>
@@ -292,9 +292,9 @@ function LeadArea({ lead, onLogout }) {
         {tab === "home" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <StatCard icon="📍" label="Hoje" value={leadData?.entradas_hoje || 0} color={C.accent} />
-              <StatCard icon="🔥" label="Streak" value={`${leadData?.streak || 0}d`} color={C.gold} />
-              <StatCard icon="x" label="Multi" value={`${leadData?.multiplicador || 1}x`} color={C.green} />
+              <StatCard icon="📍" label="Hoje" value={leadData?.Entradas_De_Hoje || 0} color={C.accent} />
+              <StatCard icon="🔥" label="Streak" value={`${leadData?.Streak || 0}d`} color={C.gold} />
+              <StatCard icon="x" label="Multi" value={`${leadData?.Multiplicador || 1}x`} color={C.green} />
             </div>
             <div style={{ background: `linear-gradient(135deg,${C.accent}12,${C.purple}08)`, border: `1px solid ${C.accent}33`, borderRadius: 16, padding: 18 }}>
               <div style={{ color: C.accent, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>SORTEIO DA SEMANA</div>
@@ -303,7 +303,7 @@ function LeadArea({ lead, onLogout }) {
             </div>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
               <div style={{ color: C.gold, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>METAS DO DIA</div>
-              {[{ l: "Minimo diario (7x)", ok: (leadData?.entradas_hoje || 0) >= 7 }, { l: "Credito de roleta (7x x 7d)", ok: (leadData?.streak || 0) >= 7 }, { l: "Multiplicador ativo (12x+)", ok: (leadData?.entradas_hoje || 0) >= 12 }].map((m, i) => (
+              {[{ l: "Minimo diario (7x)", ok: (leadData?.Entradas_De_Hoje || 0) >= 7 }, { l: "Credito de roleta (7x x 7d)", ok: (leadData?.Streak || 0) >= 7 }, { l: "Multiplicador ativo (12x+)", ok: (leadData?.Entradas_De_Hoje || 0) >= 12 }].map((m, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 6, background: m.ok ? C.green + "22" : C.border, border: `1.5px solid ${m.ok ? C.green : C.muted}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0, color: C.green }}>{m.ok ? "✓" : ""}</div>
                   <span style={{ color: m.ok ? C.text : C.sub, fontSize: 12 }}>{m.l}</span>
@@ -335,9 +335,9 @@ function LeadArea({ lead, onLogout }) {
               <div style={{ color: C.muted, fontSize: 10 }}>7x/dia x 7 dias = 1 credito</div>
             </div>
             <RouletteWheel credits={spinCredits} onSpin={async () => {
-              const nc = Math.max(0, (leadData?.creditos_roleta || 0) - 1);
+              const nc = Math.max(0, (leadData?.Creditos_Da_Roleta || 0) - 1);
               setSpinCredits(nc);
-              await supabase.from("INFLUX").update({ creditos_roleta: nc }).eq("id", leadData.id);
+              await supabase.from("INFLUX").update({ Creditos_Da_Roleta: nc }).eq("id", leadData.id);
             }} />
           </div>
         )}
@@ -481,7 +481,7 @@ function AdminPanel({ onLogout }) {
       supabase.from("Influenciadores").select("*"),
       supabase.from("Pagamentos").select("*").eq("status", "pendente"),
     ]);
-    if (l.data) { setLeads(l.data); setStats({ total: l.data.length, hoje: l.data.reduce((s, x) => s + (x.entradas_hoje || 0), 0), semana: l.data.reduce((s, x) => s + (x.entradas_semana || 0), 0) }); }
+    if (l.data) { setLeads(l.data); setStats({ total: l.data.length, hoje: l.data.reduce((s, x) => s + (x.Entradas_De_Hoje || 0), 0), semana: l.data.reduce((s, x) => s + (x.Entradas_Da_Semana || 0), 0) }); }
     if (inf.data) setInfluencers(inf.data);
     if (pag.data) setPagamentos(pag.data);
     setLoading(false);
@@ -491,7 +491,7 @@ function AdminPanel({ onLogout }) {
   const pagarPix = async (p) => { await supabase.from("Pagamentos").update({ status: "pago" }).eq("id", p.id); loadAdmin(); };
   const addCredito = async (leadId) => {
     const ld = leads.find(l => l.id === leadId);
-    await supabase.from("INFLUX").update({ creditos_roleta: (ld?.creditos_roleta || 0) + 1 }).eq("id", leadId);
+    await supabase.from("INFLUX").update({ creditos_roleta: (ld?.Creditos_Da_Roleta || 0) + 1 }).eq("id", leadId);
     loadAdmin();
   };
 
@@ -551,13 +551,13 @@ function AdminPanel({ onLogout }) {
                 {leads.map((ld, i) => (
                   <div key={ld.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ color: C.muted, fontWeight: 700, width: 20, fontSize: 11 }}>{i+1}</div>
-                    <Avatar name={ld.nome} size={34} color={C.purple} />
+                    <Avatar name={ld.Nome} size={34} color={C.purple} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{ld.nome}</div>
-                      <div style={{ color: C.muted, fontSize: 10 }}>{ld.telefone} · streak {ld.streak || 0}d</div>
+                      <div style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{ld.Nome}</div>
+                      <div style={{ color: C.muted, fontSize: 10 }}>{ld.Telefone} · streak {ld.Streak || 0}d</div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ textAlign: "right" }}><div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace", fontSize: 15 }}>{ld.entradas_hoje || 0}x</div><div style={{ color: C.muted, fontSize: 9 }}>hoje</div></div>
+                      <div style={{ textAlign: "right" }}><div style={{ color: C.accent, fontWeight: 900, fontFamily: "monospace", fontSize: 15 }}>{ld.Entradas_De_Hoje || 0}x</div><div style={{ color: C.muted, fontSize: 9 }}>hoje</div></div>
                       <button onClick={() => addCredito(ld.id)} style={{ background: C.accentDim, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: "4px 8px", color: C.accent, fontWeight: 700, fontSize: 9, cursor: "pointer", fontFamily: "monospace" }}>+CR</button>
                     </div>
                   </div>
@@ -705,4 +705,3 @@ export default function App() {
     </div>
   );
 }
-              
