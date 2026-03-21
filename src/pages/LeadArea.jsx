@@ -142,7 +142,7 @@ export function LeadArea({ lead, onLogout }) {
             <div style={{ background: `linear-gradient(135deg,${C.accent}12,${C.purple}08)`, border: `1px solid ${C.accent}33`, borderRadius: 16, padding: 18 }}>
               <div style={{ color: C.accent, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>SORTEIO DA SEMANA</div>
               <div style={{ color: C.sub, fontSize: 11, marginBottom: 14 }}>Próxima Segunda-feira. Cadastre tickets para participar.</div>
-              <a href="https://cifradobem.com" target="_blank" rel="noreferrer" style={{ display: "block", background: `linear-gradient(135deg,${C.accent},${C.purple})`, color: "#000", fontWeight: 800, textAlign: "center", borderRadius: 12, padding: "13px", textDecoration: "none", fontSize: 12, letterSpacing: 2 }}>ACESSAR CIFRA DO BEM</a>
+              <a href="https://influx-links.vercel.app" target="_blank" rel="noreferrer" style={{ display: "block", background: `linear-gradient(135deg,${C.accent},${C.purple})`, color: "#000", fontWeight: 800, textAlign: "center", borderRadius: 12, padding: "13px", textDecoration: "none", fontSize: 12, letterSpacing: 2 }}>VER TODOS OS SORTEIOS</a>
             </div>
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
               <div style={{ color: C.gold, fontWeight: 700, fontSize: 12, marginBottom: 12 }}>METAS DO DIA</div>
